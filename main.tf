@@ -4,9 +4,60 @@ provider "aws" {
 }
 
 # resource
+
+resource "aws_vpc" "hyperverge" {
+    cidr_block = "10.0.0.0/16"
+    tags = {
+        "name" = "hyperverge"
+    }
+    enable_dns_support   = true
+    enable_dns_hostnames = true
+}
+
+resource "aws_subnet" "PublicSubnetA" {
+    vpc_id = aws_vpc.hyperverge.id
+    availability_zone = "ap-northeast-1a"
+    cidr_block = "10.0.1.0/24"
+}
+
+resource "aws_subnet" "PublicSubnetB" {
+    vpc_id = aws_vpc.hyperverge.id
+    availability_zone = "ap-northeast-1c"
+    cidr_block = "10.0.2.0/24"
+}
+
+resource "aws_internet_gateway" "myigw" {
+    vpc_id = aws_vpc.hyperverge.id
+}
+
+resource "aws_route_table" "PublicRT" {
+  vpc_id = aws_vpc.hyperverge.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.myigw.id
+  }
+}
+
+resource "aws_main_route_table_association" "main" {
+  vpc_id         = aws_vpc.hyperverge.id
+  route_table_id = aws_route_table.PublicRT.id
+}
+
+resource "aws_route_table_association" "a" {
+  subnet_id = aws_subnet.PublicSubnetA.id
+  route_table_id = aws_route_table.PublicRT.id
+}
+
+resource "aws_route_table_association" "b" {
+  subnet_id = aws_subnet.PublicSubnetB.id 
+  route_table_id = aws_route_table.PublicRT.id
+}
+
+
 # security group for allowing traffic on port 80, 22
 resource "aws_security_group" "allow_traffic" {
     name         = "allow_traffic"
+    vpc_id = aws_vpc.hyperverge.id
     description  = "Allow inbound traffic"
 
     ingress {
@@ -56,7 +107,8 @@ resource "local_file" "hyperverge2_key" {
 resource "aws_instance" "hyperverge2" {
        ami = "ami-06ee4e2261a4dc5c3"
        instance_type = "t2.micro"
-       subnet_id = "subnet-03672a1ea9a5ed54e"
+       subnet_id = aws_subnet.PublicSubnetA.id
+       associate_public_ip_address = true
        vpc_security_group_ids = [aws_security_group.allow_traffic.id]
        key_name = "hyperverge2_key"
        user_data = file("script.sh")
@@ -69,7 +121,8 @@ resource "aws_instance" "hyperverge2" {
 resource "aws_instance" "hyperverge3" {
     ami = "ami-06ee4e2261a4dc5c3"
     instance_type = "t2.micro"
-    subnet_id = "subnet-01e70617085f85ec4"
+    subnet_id = aws_subnet.PublicSubnetB.id
+    associate_public_ip_address = true
     vpc_security_group_ids = [aws_security_group.allow_traffic.id]
     key_name = "hyperverge2_key"
     user_data = file("script.sh")
@@ -81,7 +134,7 @@ resource "aws_instance" "hyperverge3" {
 #create security group for ALB
 resource "aws_security_group" "sg_application_lb" {
   name   = "sg_application_lb"
-  vpc_id = "vpc-07e40feb9ed4c4919"
+  vpc_id = aws_vpc.hyperverge.id
   ingress {
     from_port = 80
     to_port   = 80
@@ -104,7 +157,7 @@ resource "aws_lb" "lb_hyperverge" {
   name               = "hyperverge-elb"
   internal           = false
   load_balancer_type = "application"
-  subnets            = ["subnet-03672a1ea9a5ed54e", "subnet-01e70617085f85ec4"]
+  subnets            = [aws_subnet.PublicSubnetA.id, aws_subnet.PublicSubnetB.id]
   security_groups    = [aws_security_group.sg_application_lb.id]
   enable_deletion_protection = false
   tags = {
@@ -117,7 +170,7 @@ resource "aws_lb_target_group" "hyperverge_vms" {
   name     = "tf-hyperverge-lb-tg"
   port     = 80
   protocol = "HTTP"
-  vpc_id = "vpc-07e40feb9ed4c4919"
+  vpc_id = aws_vpc.hyperverge.id
 }
 
 #create listner for ALB
