@@ -15,7 +15,7 @@ from email.message import EmailMessage
 
 # Define email sender and receiver
 email_sender = "riserishabh15@gmail.com"
-email_password = "ypwrvlqtvpxehuuv"
+email_password = ""
 email_receiver = "srivastava829@gmail.com"
 
 # Set the subject and body of the email

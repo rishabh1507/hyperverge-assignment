@@ -5,6 +5,7 @@ provider "aws" {
 
 # resource
 
+#create vpc
 resource "aws_vpc" "hyperverge" {
     cidr_block = "10.0.0.0/16"
     tags = {
@@ -14,6 +15,7 @@ resource "aws_vpc" "hyperverge" {
     enable_dns_hostnames = true
 }
 
+#create 2 public subnet for instances in different region
 resource "aws_subnet" "PublicSubnetA" {
     vpc_id = aws_vpc.hyperverge.id
     availability_zone = "ap-northeast-1a"
@@ -26,10 +28,12 @@ resource "aws_subnet" "PublicSubnetB" {
     cidr_block = "10.0.2.0/24"
 }
 
+# create igw
 resource "aws_internet_gateway" "myigw" {
     vpc_id = aws_vpc.hyperverge.id
 }
 
+# create a route table + make it a main rt
 resource "aws_route_table" "PublicRT" {
   vpc_id = aws_vpc.hyperverge.id
   route {
@@ -43,6 +47,7 @@ resource "aws_main_route_table_association" "main" {
   route_table_id = aws_route_table.PublicRT.id
 }
 
+#route table association for both subnets
 resource "aws_route_table_association" "a" {
   subnet_id = aws_subnet.PublicSubnetA.id
   route_table_id = aws_route_table.PublicRT.id
